@@ -26,7 +26,6 @@ st.markdown("""
 # Función para convertir link de SharePoint
 def convertir_link_sharepoint(url):
     try:
-        # Quitar parámetros y agregar download=1
         base_url = url.split('?')[0]
         return base_url + '?download=1'
     except:
@@ -62,45 +61,47 @@ def cargar_desde_url(url):
 
 # Función para clasificar tipo de error según SEGPRO
 def clasificar_tipo_error(texto):
-    if pd.isna(texto):
+    if pd.isna(texto) or str(texto).strip() == '':
         return "Sin clasificar"
     
     texto = str(texto).lower()
     
     # Mapeo exacto de tipos de error SEGPRO
-    if 'defectuoso' in texto or 'defecto' in texto or 'falla' in texto:
+    if 'defectuoso' in texto or 'defecto' in texto:
         return "Producto defectuoso"
-    elif 'talla' in texto or 'tamaño' in texto or 'número' in texto:
+    elif 'talla' in texto:
         return "Error de talla"
-    elif 'faltante' in texto or 'falta' in texto or 'incompleto' in texto or 'pieza' in texto:
+    elif 'faltante' in texto or 'incompleto' in texto or 'pieza' in texto:
         return "Pieza faltante"
     elif 'color' in texto:
         return "Color incorrecto"
-    elif 'no coincide' in texto or 'equivocado' in texto or 'otro producto' in texto or 'incorrecto' in texto:
+    elif 'no coincide' in texto or 'equivocado' in texto:
         return "Producto no coincide con lo solicitado"
-    elif 'transporte' in texto or 'dañado' in texto or 'empaque' in texto or 'golpeado' in texto:
+    elif 'transporte' in texto or 'dañado' in texto or 'empaque' in texto:
         return "Daño por transporte"
-    elif 'fábrica' in texto:
+    elif 'fábrica' in texto or 'falla' in texto:
         return "Producto con fallas de fábrica"
     else:
         return "Otros"
 
-# Función para identificar productos SEGPRO
-def identificar_producto(texto):
-    if pd.isna(texto):
+# Función para normalizar nombre de productos
+def normalizar_producto(texto):
+    if pd.isna(texto) or str(texto).strip() == '':
         return "Sin especificar"
     
-    texto = str(texto).lower()
+    texto = str(texto).strip()
+    texto_lower = texto.lower()
     
     # Productos específicos SEGPRO
-    if 'multi' in texto or 'flex' in texto or 'guante' in texto:
+    if 'multi' in texto_lower and 'flex' in texto_lower:
         return "Guante Multi Flex"
-    elif 'harder' in texto or 'zapato' in texto:
+    elif 'harder' in texto_lower:
         return "Zapatos Harder"
-    elif 'cono' in texto or 'naranja' in texto:
+    elif 'cono' in texto_lower and 'naranja' in texto_lower:
         return "Cono Naranja"
     else:
-        return texto.title()[:50]  # Limitar longitud
+        # Retornar el nombre original limpio
+        return texto.title()
 
 # Función para clasificar estado
 def clasificar_estado(respuesta):
@@ -115,26 +116,6 @@ def clasificar_estado(respuesta):
         return "En Proceso"
     else:
         return "Pendiente"
-
-# Función para calcular satisfacción
-def calcular_satisfaccion(texto, es_inicial=True):
-    if pd.isna(texto):
-        return 2 if es_inicial else None
-    
-    texto = str(texto).lower()
-    
-    if any(p in texto for p in ['pésimo', 'horrible', 'terrible']):
-        return 1
-    elif any(p in texto for p in ['malo', 'insatisfecho', 'molesto']):
-        return 2
-    elif any(p in texto for p in ['regular', 'aceptable']):
-        return 3
-    elif any(p in texto for p in ['bueno', 'satisfecho', 'bien']):
-        return 4 if not es_inicial else 3
-    elif any(p in texto for p in ['excelente', 'perfecto', 'genial']):
-        return 5 if not es_inicial else 4
-    else:
-        return 2 if es_inicial else 3
 
 # Título principal
 col1, col2 = st.columns([3, 1])
@@ -154,7 +135,7 @@ st.sidebar.header("⚙️ Configuración")
 
 opcion_carga = st.sidebar.radio(
     "Método de carga:",
-    ["URL de SharePoint/OneDrive", "Subir archivo Excel", "Datos de ejemplo"]
+    ["URL de SharePoint/OneDrive", "Subir archivo Excel"]
 )
 
 df = None
@@ -170,7 +151,7 @@ if opcion_carga == "URL de SharePoint/OneDrive":
         with st.spinner("🌐 Cargando..."):
             df, error = cargar_desde_url(url)
             if df is not None:
-                st.sidebar.success(f"✅ {len(df)} registros")
+                st.sidebar.success(f"✅ {len(df)} registros cargados")
             else:
                 st.sidebar.error(f"❌ {error}")
 
@@ -179,24 +160,13 @@ elif opcion_carga == "Subir archivo Excel":
     if archivo:
         df, error = cargar_datos_excel(archivo)
         if df is not None:
-            st.sidebar.success(f"✅ {len(df)} registros")
-
-else:  # Datos de ejemplo
-    df = pd.DataFrame({
-        'fecha': pd.date_range(end=datetime.now(), periods=20, freq='D'),
-        'cliente': ['Cliente ' + str(i) for i in range(20)],
-        'producto': ['Guante Multi Flex', 'Zapatos Harder', 'Cono Naranja'] * 7 + ['Guante Multi Flex'],
-        'tipo_error': ['Producto defectuoso', 'Error de talla', 'Color incorrecto', 'Daño por transporte'] * 5,
-        'descripcion': ['Queja ejemplo'] * 20,
-        'respuesta': ['Solucionado'] * 15 + [None] * 5
-    })
-    st.sidebar.info("📝 Datos de ejemplo")
+            st.sidebar.success(f"✅ {len(df)} registros cargados")
 
 # Procesar datos
 if df is not None and len(df) > 0:
     
     # Mostrar columnas detectadas
-    with st.expander("🔍 Vista previa y columnas detectadas"):
+    with st.expander("🔍 Vista previa del Excel cargado"):
         st.write(f"**Total de registros:** {len(df)}")
         st.write(f"**Columnas encontradas:** {list(df.columns)}")
         st.dataframe(df.head(10), use_container_width=True)
@@ -206,36 +176,37 @@ if df is not None and len(df) > 0:
     cols = list(df.columns)
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Mapeo de Columnas")
+    st.sidebar.subheader("🔍 Seleccionar Columnas")
     
-    # Detectar automáticamente columnas relevantes
-    col_fecha = None
-    col_cliente = None
-    col_producto = None
-    col_tipo_error = None
-    col_descripcion = None
-    col_respuesta = None
+    # Detectar automáticamente columnas
+    col_fecha = next((c for c in cols if 'fecha' in c or 'date' in c), cols[0] if cols else None)
+    col_email = next((c for c in cols if 'email' in c or 'correo' in c or 'mail' in c), None)
+    col_cliente = next((c for c in cols if 'cliente' in c or 'nombre' in c), None)
+    col_producto = next((c for c in cols if 'producto' in c or 'item' in c or 'artículo' in c or 'articulo' in c), None)
+    col_tipo_error = next((c for c in cols if ('tipo' in c and 'error' in c) or 'categoria' in c), None)
+    col_descripcion = next((c for c in cols if 'descripcion' in c or 'detalle' in c or 'queja' in c or 'reclamo' in c or 'asunto' in c or 'mensaje' in c), None)
+    col_respuesta = next((c for c in cols if 'respuesta' in c or 'solucion' in c), None)
     
-    for col in cols:
-        if 'fecha' in col or 'date' in col:
-            col_fecha = col
-        elif 'cliente' in col or 'nombre' in col:
-            col_cliente = col
-        elif 'producto' in col or 'item' in col:
-            col_producto = col
-        elif 'tipo' in col and 'error' in col:
-            col_tipo_error = col
-        elif 'descripcion' in col or 'detalle' in col or 'queja' in col or 'reclamo' in col or 'asunto' in col:
-            col_descripcion = col
-        elif 'respuesta' in col or 'solucion' in col or 'resolucion' in col:
-            col_respuesta = col
-    
-    # Permitir selección manual
+    # Selectores manuales
     col_fecha_sel = st.sidebar.selectbox("📅 Fecha:", cols, index=cols.index(col_fecha) if col_fecha else 0)
-    col_producto_sel = st.sidebar.selectbox("📦 Producto:", ['Auto-detectar'] + cols, index=0)
-    col_tipo_error_sel = st.sidebar.selectbox("⚠️ Tipo de Error:", ['Auto-detectar'] + cols, index=0)
-    col_descripcion_sel = st.sidebar.selectbox("📝 Descripción/Queja:", cols, index=cols.index(col_descripcion) if col_descripcion else 0)
-    col_respuesta_sel = st.sidebar.selectbox("✅ Respuesta:", ['Sin respuesta'] + cols, index=0)
+    
+    col_email_sel = st.sidebar.selectbox("📧 Email/Correo:", ['No tiene'] + cols, 
+                                          index=cols.index(col_email)+1 if col_email else 0)
+    
+    col_cliente_sel = st.sidebar.selectbox("👤 Cliente/Nombre:", ['No tiene'] + cols,
+                                            index=cols.index(col_cliente)+1 if col_cliente else 0)
+    
+    col_producto_sel = st.sidebar.selectbox("📦 Producto:", ['No tiene'] + cols,
+                                             index=cols.index(col_producto)+1 if col_producto else 0)
+    
+    col_tipo_error_sel = st.sidebar.selectbox("⚠️ Tipo de Error:", ['Auto-clasificar'] + cols,
+                                               index=cols.index(col_tipo_error)+1 if col_tipo_error else 0)
+    
+    col_descripcion_sel = st.sidebar.selectbox("📝 Descripción:", ['No tiene'] + cols,
+                                                index=cols.index(col_descripcion)+1 if col_descripcion else 0)
+    
+    col_respuesta_sel = st.sidebar.selectbox("✅ Respuesta:", ['No tiene'] + cols,
+                                              index=cols.index(col_respuesta)+1 if col_respuesta else 0)
     
     # Crear DataFrame procesado
     df_proc = pd.DataFrame()
@@ -243,49 +214,44 @@ if df is not None and len(df) > 0:
     # Fecha
     df_proc['fecha'] = pd.to_datetime(df[col_fecha_sel], errors='coerce')
     
-    # Cliente (si existe)
-    if col_cliente:
-        df_proc['cliente'] = df[col_cliente].fillna('Sin especificar')
+    # Email
+    if col_email_sel != 'No tiene':
+        df_proc['email'] = df[col_email_sel].fillna('Sin email').astype(str)
     else:
-        df_proc['cliente'] = 'Cliente ' + df.index.astype(str)
+        df_proc['email'] = 'No disponible'
     
-    # Descripción/Queja
-    df_proc['descripcion'] = df[col_descripcion_sel].fillna('Sin descripción').astype(str)
-    
-    # Producto - Auto-detectar o usar columna
-    if col_producto_sel == 'Auto-detectar':
-        df_proc['producto'] = df_proc['descripcion'].apply(identificar_producto)
+    # Cliente
+    if col_cliente_sel != 'No tiene':
+        df_proc['cliente'] = df[col_cliente_sel].fillna('Sin nombre').astype(str)
     else:
-        df_proc['producto'] = df[col_producto_sel].fillna('Sin especificar').apply(identificar_producto)
+        df_proc['cliente'] = 'No disponible'
     
-    # Tipo de Error - Auto-detectar o usar columna
-    if col_tipo_error_sel == 'Auto-detectar':
+    # Producto
+    if col_producto_sel != 'No tiene':
+        df_proc['producto'] = df[col_producto_sel].fillna('Sin especificar').apply(normalizar_producto)
+    else:
+        df_proc['producto'] = 'No especificado'
+    
+    # Descripción
+    if col_descripcion_sel != 'No tiene':
+        df_proc['descripcion'] = df[col_descripcion_sel].fillna('Sin descripción').astype(str)
+    else:
+        df_proc['descripcion'] = 'No disponible'
+    
+    # Tipo de Error
+    if col_tipo_error_sel == 'Auto-clasificar':
         df_proc['tipo_error'] = df_proc['descripcion'].apply(clasificar_tipo_error)
     else:
         df_proc['tipo_error'] = df[col_tipo_error_sel].fillna('').apply(clasificar_tipo_error)
     
     # Respuesta
-    if col_respuesta_sel != 'Sin respuesta':
-        df_proc['respuesta'] = df[col_respuesta_sel].fillna('')
+    if col_respuesta_sel != 'No tiene':
+        df_proc['respuesta'] = df[col_respuesta_sel].fillna('Sin respuesta').astype(str)
     else:
-        df_proc['respuesta'] = ''
+        df_proc['respuesta'] = 'No disponible'
     
     # Estado
     df_proc['estado'] = df_proc['respuesta'].apply(clasificar_estado)
-    
-    # Satisfacción
-    df_proc['satisfaccion_inicial'] = df_proc['descripcion'].apply(lambda x: calcular_satisfaccion(x, True))
-    df_proc['satisfaccion_final'] = df_proc.apply(
-        lambda row: calcular_satisfaccion(row['respuesta'], False) if row['estado'] == 'Resuelto' else None,
-        axis=1
-    )
-    
-    # Días de resolución (simulado)
-    df_proc['dias_resolucion'] = df_proc.apply(
-        lambda row: ((datetime.now() - row['fecha']).days if pd.notna(row['fecha']) else 5) 
-        if row['estado'] == 'Resuelto' else None,
-        axis=1
-    )
     
     # Filtros
     st.sidebar.markdown("---")
@@ -322,10 +288,19 @@ if df is not None and len(df) > 0:
         default=estados_disponibles
     )
     
+    # Filtro por producto
+    productos_disponibles = sorted(df_proc['producto'].unique())
+    productos_filtro = st.sidebar.multiselect(
+        "Producto:",
+        options=productos_disponibles,
+        default=productos_disponibles
+    )
+    
     # Aplicar filtros
     mask_tipo = df_proc['tipo_error'].isin(tipos_error_filtro)
     mask_estado = df_proc['estado'].isin(estados_filtro)
-    df_filtrado = df_proc[mask_fecha & mask_tipo & mask_estado]
+    mask_producto = df_proc['producto'].isin(productos_filtro)
+    df_filtrado = df_proc[mask_fecha & mask_tipo & mask_estado & mask_producto]
     
     # Métricas principales
     st.header("📈 Métricas Principales")
@@ -334,23 +309,18 @@ if df is not None and len(df) > 0:
     
     total = len(df_filtrado)
     resueltos = len(df_filtrado[df_filtrado['estado'] == 'Resuelto'])
+    en_proceso = len(df_filtrado[df_filtrado['estado'] == 'En Proceso'])
+    pendientes = len(df_filtrado[df_filtrado['estado'] == 'Pendiente'])
     tasa = (resueltos / total * 100) if total > 0 else 0
-    
-    tiempo_prom = df_filtrado[df_filtrado['dias_resolucion'].notna()]['dias_resolucion'].mean()
-    tiempo_prom = tiempo_prom if pd.notna(tiempo_prom) else 0
-    
-    sat_inicial = df_filtrado['satisfaccion_inicial'].mean()
-    sat_final = df_filtrado[df_filtrado['satisfaccion_final'].notna()]['satisfaccion_final'].mean()
-    mejora = sat_final - sat_inicial if pd.notna(sat_final) else 0
     
     with col1:
         st.metric("Total Quejas", total)
     with col2:
-        st.metric("Tasa Resolución", f"{tasa:.1f}%", delta=f"{resueltos} resueltas")
+        st.metric("Resueltas", resueltos, delta=f"{tasa:.1f}%")
     with col3:
-        st.metric("Tiempo Promedio", f"{tiempo_prom:.1f} días")
+        st.metric("En Proceso", en_proceso)
     with col4:
-        st.metric("Mejora Satisfacción", f"+{mejora:.1f}", delta=f"{sat_inicial:.1f} → {sat_final:.1f}")
+        st.metric("Pendientes", pendientes)
     
     st.markdown("---")
     
@@ -358,70 +328,136 @@ if df is not None and len(df) > 0:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📊 Por Tipo de Error")
+        st.subheader("📊 Quejas por Tipo de Error")
         tipo_counts = df_filtrado['tipo_error'].value_counts()
         st.bar_chart(tipo_counts)
     
     with col2:
-        st.subheader("📈 Por Estado")
+        st.subheader("📈 Quejas por Estado")
         estado_counts = df_filtrado['estado'].value_counts()
         st.bar_chart(estado_counts)
     
     col3, col4 = st.columns(2)
     
     with col3:
-        st.subheader("🏆 Top 5 Productos")
-        producto_counts = df_filtrado['producto'].value_counts().head(5)
+        st.subheader("📦 Quejas por Producto")
+        producto_counts = df_filtrado['producto'].value_counts()
         st.bar_chart(producto_counts)
     
     with col4:
-        st.subheader("⭐ Satisfacción")
-        sat_data = pd.DataFrame({
-            'Inicial': [sat_inicial],
-            'Final': [sat_final if pd.notna(sat_final) else 0]
-        })
-        st.bar_chart(sat_data)
+        st.subheader("📅 Tendencia en el Tiempo")
+        df_temporal = df_filtrado[df_filtrado['fecha'].notna()].groupby(df_filtrado['fecha'].dt.date).size()
+        if len(df_temporal) > 0:
+            st.line_chart(df_temporal)
+        else:
+            st.info("Sin datos de fechas")
     
-    # Tendencias
-    st.subheader("📅 Tendencias Temporales")
-    df_temporal = df_filtrado[df_filtrado['fecha'].notna()].groupby(df_filtrado['fecha'].dt.date).size()
-    if len(df_temporal) > 0:
-        st.line_chart(df_temporal)
-    else:
-        st.info("No hay datos con fechas válidas para mostrar tendencias")
-    
-    # Tabla
+    # Tabla completa con correos
     st.markdown("---")
-    st.subheader("📋 Detalle de Quejas")
+    st.subheader("📋 Detalle Completo de Quejas")
     
-    df_mostrar = df_filtrado[['fecha', 'cliente', 'producto', 'tipo_error', 'estado', 
-                               'satisfaccion_inicial', 'satisfaccion_final']].copy()
+    # Preparar tabla para mostrar
+    columnas_mostrar = ['fecha', 'email', 'cliente', 'producto', 'tipo_error', 'estado', 'descripcion']
+    
+    # Solo incluir columnas que existen
+    columnas_a_mostrar = [col for col in columnas_mostrar if col in df_filtrado.columns]
+    
+    df_mostrar = df_filtrado[columnas_a_mostrar].copy()
+    
+    # Formatear fecha
     df_mostrar['fecha'] = df_mostrar['fecha'].apply(
-        lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else 'Sin fecha'
+        lambda x: x.strftime('%Y-%m-%d %H:%M') if pd.notna(x) else 'Sin fecha'
     )
     
-    st.dataframe(df_mostrar, use_container_width=True, height=400)
+    # Truncar descripción larga
+    if 'descripcion' in df_mostrar.columns:
+        df_mostrar['descripcion'] = df_mostrar['descripcion'].apply(
+            lambda x: (str(x)[:100] + '...') if len(str(x)) > 100 else str(x)
+        )
+    
+    # Renombrar columnas para mejor visualización
+    nombres_columnas = {
+        'fecha': 'Fecha',
+        'email': 'Correo Electrónico',
+        'cliente': 'Cliente',
+        'producto': 'Producto',
+        'tipo_error': 'Tipo de Error',
+        'estado': 'Estado',
+        'descripcion': 'Descripción'
+    }
+    df_mostrar = df_mostrar.rename(columns=nombres_columnas)
+    
+    # Mostrar tabla con altura ajustable
+    st.dataframe(df_mostrar, use_container_width=True, height=500)
+    
+    # Resumen por categorías
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📊 Resumen por Tipo de Error")
+        resumen_tipo = df_filtrado.groupby('tipo_error').agg({
+            'estado': lambda x: (x == 'Resuelto').sum()
+        }).reset_index()
+        resumen_tipo.columns = ['Tipo de Error', 'Casos Resueltos']
+        resumen_tipo['Total Casos'] = df_filtrado['tipo_error'].value_counts().values
+        resumen_tipo['% Resolución'] = (resumen_tipo['Casos Resueltos'] / resumen_tipo['Total Casos'] * 100).round(1)
+        st.dataframe(resumen_tipo, use_container_width=True)
+    
+    with col2:
+        st.subheader("📦 Resumen por Producto")
+        resumen_producto = df_filtrado.groupby('producto').agg({
+            'estado': lambda x: (x == 'Resuelto').sum()
+        }).reset_index()
+        resumen_producto.columns = ['Producto', 'Casos Resueltos']
+        resumen_producto['Total Casos'] = df_filtrado['producto'].value_counts().values
+        resumen_producto['% Resolución'] = (resumen_producto['Casos Resueltos'] / resumen_producto['Total Casos'] * 100).round(1)
+        st.dataframe(resumen_producto, use_container_width=True)
     
     # Exportar
     st.markdown("---")
-    csv = df_filtrado.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        "📥 Descargar Datos Procesados (CSV)",
-        data=csv,
-        file_name=f"quejas_segpro_{datetime.now().strftime('%Y%m%d')}.csv",
-        mime="text/csv"
-    )
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        csv = df_filtrado.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Descargar Datos Completos (CSV)",
+            data=csv,
+            file_name=f"quejas_segpro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv"
+        )
+    
+    with col2:
+        # Exportar solo tabla resumida
+        csv_resumen = df_mostrar.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Descargar Tabla Mostrada (CSV)",
+            data=csv_resumen,
+            file_name=f"tabla_quejas_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv"
+        )
 
 else:
-    st.info("👈 Selecciona un método de carga en el menú lateral")
+    st.info("👈 Carga tu archivo Excel en el menú lateral")
     
     st.markdown("""
     ### 📝 Instrucciones:
     
-    **Productos detectados automáticamente:**
-    - 🧤 Guante Multi Flex
-    - 👞 Zapatos Harder
-    - 🚧 Cono Naranja
+    **Este dashboard NO inventa datos.** Solo analiza lo que viene en tu Excel.
+    
+    **Columnas que puede detectar:**
+    - 📅 Fecha de la queja
+    - 📧 Email/Correo del cliente
+    - 👤 Nombre del cliente
+    - 📦 Producto (se normalizará automáticamente)
+    - ⚠️ Tipo de error
+    - 📝 Descripción del problema
+    - ✅ Respuesta o solución
+    
+    **Productos específicos de SEGPRO:**
+    - Guante Multi Flex
+    - Zapatos Harder
+    - Cono Naranja
     
     **Tipos de error clasificados:**
     - Producto defectuoso
@@ -431,9 +467,7 @@ else:
     - Producto no coincide con lo solicitado
     - Daño por transporte
     - Producto con fallas de fábrica
-    
-    El dashboard detectará automáticamente estos valores en tu Excel.
     """)
 
 st.markdown("---")
-st.markdown("<div style='text-align: center; color: gray;'>Dashboard SEGPRO © 2024</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; color: gray;'>Dashboard SEGPRO © 2024 | Datos reales del Excel</div>", unsafe_allow_html=True)
